@@ -1,0 +1,6 @@
+/.idea/
+/.venv/
+/apps/output/
+/spark-events/*
+/apps/data/*.parquet
+/apps/fixed_data/

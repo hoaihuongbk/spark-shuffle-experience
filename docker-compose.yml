@@ -1,0 +1,55 @@
+version: '3'
+services:
+  spark-master:
+    container_name: spark-master
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    environment:
+      - SPARK_MODE=master
+      - SPARK_EXTRA_CLASSPATH=/extra-jars/*
+    volumes:
+      - ./apps:/app
+      - ./extra-jars:/extra-jars
+      - ./spark-events:/opt/spark/spark-events
+    command: bash -c "/opt/spark/sbin/start-master.sh && tail -f /opt/spark/logs/*"
+
+  spark-worker:
+    container_name: spark-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_EXTRA_CLASSPATH=/extra-jars/*
+    volumes:
+      - ./apps:/app
+      - ./extra-jars:/extra-jars
+      - ./spark-events:/opt/spark/spark-events
+    command: bash -c "/opt/spark/sbin/start-worker.sh spark://spark-master:7077 && tail -f /opt/spark/logs/*"
+    depends_on:
+      - spark-master
+
+  spark-history:
+    container_name: spark-history
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "18080:18080"
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+      - SPARK_HISTORY_OPTS="-Dspark.history.fs.logDirectory=/opt/spark/spark-events"
+      - SPARK_CLEANER_ENABLED=false
+    volumes:
+      - ./extra-jars:/extra-jars
+      - ./spark-events:/opt/spark/spark-events
+    command: bash -c "/opt/spark/sbin/start-history-server.sh  && tail -f /opt/spark/logs/*"
+    depends_on:
+      - spark-master
+
+
