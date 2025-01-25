@@ -4,3 +4,9 @@
 /spark-events/*
 /apps/data/*.parquet
 /apps/fixed_data/
+/apps/transactions/
+/apps/stores/
+/apps/countries/
+/apps/comet_country_agg/
+/apps/comet_transact_countries/
+/apps/none_transact_countries/

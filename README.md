@@ -1,52 +1,48 @@
 # Spark Shuffle Experience
 
-A hands-on project to explore and analyze Spark shuffle behavior using NYC Taxi dataset, comparing different shuffle implementations.
+A hands-on project to explore and analyze Spark join strategies, comparing SortMergeJoin vs ShuffleHashJoin implementations across different engines.
 
 ## Overview
-This repository demonstrates various Spark shuffle patterns using real-world NYC Yellow Taxi trip data, allowing you to:
-- Test different shuffle operations (groupBy, join, repartition)
-- Analyze shuffle performance by comparing:
-    - Spark default shuffle
-    - Comet shuffle plugin
-    - Gluten shuffle plugin
-- Understand data distribution patterns and performance implications
+This repository demonstrates join performance patterns using simulated transaction data, allowing you to:
+- Test different join strategies
+- Analyze performance by comparing:
+  - Spark default (SortMergeJoin)
+  - Comet plugin (ShuffleHashJoin)
+  - Photon runtime (PhotonShuffledHashJoin)
+- Understand data characteristics and performance implications
 
 ## Getting Started
 
-1. Setup Spark Environment:
+1. Install Comet Plugin:
+
+- Follow installation guide: https://datafusion.apache.org/comet/user-guide/installation.html
+- Get version compatible with Spark 3.5.0 and Scala 2.12, download and put comet jar into `extra-jars` folder.
+
+2. For Photon Tests:
+- Requires access to Databricks workspace
+- Permission to create and run jobs
+- Workspace supporting Photon runtime and Spark 3.5 (> DBR 15.4 LTS)
+
+3. Setup Spark Environment:
 
 ```base
 make setup
 ```
 
-Run setup command to setup spark environment including 1 spark master, 1 worker and 1 history server.
-
-2. Download NYC Taxi Data:
-
-```base
-make download-data
-```
-
-You may need to fix the dataset schema before starting the analysis. Reason: the original parquet file having the 
-inconsistent schema across files.
-
-```base
-make fix-schema
-```
-
+This sets up a Spark environment with 1 master, 1 worker and 1 history server.
 
 ## Shuffle Test Examples
 
 Use the `make run ...` command to submit a spark job to test shuffle behavior.
 The run command supports the following options:
-- plugin: `none`, `comet`, `gluten`
-- test_type: `groupby`, `join`, `window`, `repartition`, `sort`
+- plugin: `none`, `comet`
+- test_type: `join`, `aggregate`
 
 Example commands:
 
 ```bash
-## Test groupby with default shuffle
-make run plugin=none test_type=groupby
+## Test join with default shuffle
+make run plugin=none test_type=join
 
 ## Test join with Comet plugin
 make run plugin=comet test_type=join
@@ -55,23 +51,16 @@ make run plugin=comet test_type=join
 
 ## Performance Analysis
 
-The project includes tools to analyze shuffle performance:
+Here's a performance comparison table across the three engines:
 
-- Memory usage monitoring
-- Shuffle read/write metrics
-- Task distribution visualization
-- Network I/O statistics
+| Metric | Default Spark (SortMergeJoin) | Comet (CometHashJoin) | Photon (PhotonShuffleHashJoin) |
+|--------|------------------------------|----------------------|------------------------------|
+| Total Duration | 4.4m | 1.8m | 1.8m |
+| Most Stage Duration | 3.2m | 54s | 44s |
+| Most Shuffle Read | 1939.9 MiB | 1498.9 MiB | 1466.1 MiB |
+| Most Shuffle Write | 1939.9 MiB | 1498.9 MiB | 1466.1 MiB |
+| Most Spill (Memory) | 10.8 GiB | 0 | 0 |
+| Most Spill (Disk) | 1634.3 MiB | 0 | 0 |
+| Most Join Duration (Min/Med/Max) | 6.3m (15.6s/16.6s/2.1m) | 1.6m (7.6s/9.0s/13.5s) | 43.2s (1.1s/2.2s/4.1s) |
 
-Results are stored in the `metrics/` directory for comparison.
-
-## Benchmark Results
-
-Performance benchmarks comparing different shuffle implementations:
-
-| Operation | Default | Comet | Gluten |
-|-----------|---------|-------|--------|
-| GroupBy   | ...     | ...   | ...    |
-| Join      | ...     | ...   | ...    |
-| Window    | ...     | ...   | ...    |
-
-Detailed analysis and visualizations available in the `benchmarks/` directory.
+Detailed analysis and visualizations available in the blog

@@ -1,43 +1,17 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, avg, count, sum
-from pyspark.sql import Window
 
 
-def create_dataset(spark):
-    return spark.read.parquet("/app/fixed_data/*.parquet")
-
-
-def write_output(df, file_name):
-    df.write.mode("overwrite").parquet("/app/output/" + file_name)
-
-
-def test_group_by(df):
-    return df.groupBy("PULocationID").agg(
-        avg("fare_amount").alias("avg_fare"),
-        count("*").alias("trip_count"),
-        sum("total_amount").alias("total_revenue"),
+def load_transactions(spark):
+    spark.read.parquet("/app/transactions/*.parquet").createOrReplaceTempView(
+        "transactions"
     )
 
-
-def test_join(df):
-    morning_trip_df = df.filter(
-        col("tpep_pickup_datetime").between(
-            "2023-03-01 00:00:00", "2023-03-01 12:00:00"
-        )
-    )
-    evening_trip_df = df.filter(
-        col("tpep_pickup_datetime").between(
-            "2023-03-01 12:00:00", "2023-03-01 23:59:59"
-        )
-    )
-    return morning_trip_df.join(evening_trip_df, on="PULocationID", how="inner")
+def load_stores(spark):
+    spark.read.parquet("/app/stores/*.parquet").createOrReplaceTempView("stores")
 
 
-def test_window_function(df):
-    window_spec = Window.partitionBy("PULocationID").orderBy(
-        col("tpep_pickup_datetime")
-    )
-    return df.withColumn("running_fare", sum("fare_amount").over(window_spec))
+def load_countries(spark):
+    spark.read.parquet("/app/countries/*.parquet").createOrReplaceTempView("countries")
 
 
 def run_shuffle_test(test_type, plugin):
@@ -46,30 +20,59 @@ def run_shuffle_test(test_type, plugin):
         .config("spark.eventLog.enabled", "true")
         .config("spark.eventLog.dir", "/opt/spark/spark-events")
         .config("spark.history.fs.logDirectory", "/opt/spark/spark-events")
+        .config("spark.sql.explain.codegen", "true")
+        .config("spark.sql.explain.mode", "extended")
         .getOrCreate()
     )
 
-    df = create_dataset(spark)
-    df.printSchema()
+    ## Load the source data and create a temporary view
+    load_transactions(spark)
+    load_stores(spark)
+    load_countries(spark)
 
-    # Force shuffle with groupBy
-    if test_type == "group_by":
-        grouped_df = test_group_by(df)
-        grouped_df.explain()
-        grouped_output_file = plugin + "_grouped_df"
-        write_output(grouped_df, grouped_output_file)
-    # Force shuffle with join
-    elif test_type == "join":
-        joined_df = test_join(df)
-        joined_df.explain()
-        joined_df.show()
-    elif test_type == "window":
-        windowed_df = test_window_function(df)
-        windowed_df.explain()
-        windowed_output_file = plugin + "_windowed_df"
-        write_output(windowed_df, windowed_output_file)
-    else:
-        raise Exception("Invalid test type")
+    if test_type == "join":
+        ## Disabling the automatic broadcast join entirely. That is, Spark will never broadcast any dataset for joins, regardless of its size.
+        ## spark.conf.set("spark.sql.autoBroadcastJoinThreshold", -1)
+
+        ## Test join w/o broadcast
+        joined_df_no_broadcast = spark.sql("""
+            SELECT 
+                transactions.id,
+                amount,
+                countries.name as country_name,
+                employees,
+                stores.name as store_name
+            FROM
+                transactions
+            LEFT JOIN
+                stores
+                ON
+                    transactions.store_id = stores.id
+            LEFT JOIN
+                countries
+                ON
+                    transactions.country_id = countries.id
+        """)
+        ## Create a table with the joined data
+        (
+            joined_df_no_broadcast.write.mode("overwrite").parquet(
+                "/app/" + plugin + "_transact_countries"
+            )
+        )
+
+    elif test_type == "aggregate":
+        ## Test groupBy
+        grouped_df = spark.sql("""
+            SELECT 
+              country_id, 
+              COUNT(*) AS count,
+              AVG(amount) AS avg_amount
+            FROM transactions
+            GROUP BY country_id
+        """)
+
+        ## Create a table with the grouped_df data
+        (grouped_df.write.mode("overwrite").parquet("/app/" + plugin + "_country_agg"))
 
 
 if __name__ == "__main__":
