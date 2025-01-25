@@ -63,4 +63,4 @@ Here's a performance comparison table across the three engines:
 | Most Spill (Disk) | 1634.3 MiB | 0 | 0 |
 | Most Join Duration (Min/Med/Max) | 6.3m (15.6s/16.6s/2.1m) | 1.6m (7.6s/9.0s/13.5s) | 43.2s (1.1s/2.2s/4.1s) |
 
-Detailed analysis and visualizations available in the blog
+Detailed analysis and visualizations available in the [blog](https://huongvuong.substack.com/p/lessons-learned-sortmergejoin-vs)
