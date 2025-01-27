@@ -5,10 +5,10 @@ setup:
 	@docker compose up -d --build
 
 prepare_dataset:
-	@echo "Preparing the dataset for the spark job"
+	@echo "Preparing the dataset with table format=$(table_format) for the spark job"
 	@docker exec -it spark-master spark-submit \
 		--master spark://spark-master:7077 \
-		/app/prepare_dataset.py;
+		/app/prepare_dataset.py --table-format=$(table_format);
 
 clean:
 	@echo "Clean up the spark environment"
@@ -28,13 +28,13 @@ run:
 			--conf "spark.sql.extendedExplainProviders=org.apache.comet.ExtendedExplainInfo" \
 			--conf "spark.memory.offHeap.enabled=true" \
 			--conf "spark.memory.offHeap.size=1g" \
-			/app/job.py $(test_type) $(plugin); \
+			/app/job.py --test-type=$(test_type) --plugin=$(plugin) --table-format=$(table_format); \
 	else \
 		docker exec -it spark-master spark-submit \
 			--master spark://spark-master:7077 \
 			--conf "spark.sql.autoBroadcastJoinThreshold=-1" \
 			--conf "spark.memory.offHeap.enabled=true" \
             --conf "spark.memory.offHeap.size=1g" \
-			/app/job.py $(test_type) $(plugin); \
+			/app/job.py --test-type=$(test_type) --plugin=$(plugin) --table-format=$(table_format); \
 	fi
 

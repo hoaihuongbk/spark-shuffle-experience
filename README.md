@@ -31,21 +31,36 @@ make setup
 
 This sets up a Spark environment with 1 master, 1 worker and 1 history server.
 
+4. Prepare Data:
+
+```bash
+
+## Generate test data using Iceberg format
+make prepare_dataset table_format=iceberg
+
+## Generate test data using Delta format
+make prepare_dataset table_format=delta
+
+## By default, generates data in pure parquet format
+make prepare_dataset table_format=parquet
+```
+
 ## Shuffle Test Examples
 
 Use the `make run ...` command to submit a spark job to test shuffle behavior.
 The run command supports the following options:
 - plugin: `none`, `comet`
 - test_type: `join`, `aggregate`
+- table_format: `delta`, `iceberg`, `parquet`
 
 Example commands:
 
 ```bash
 ## Test join with default shuffle
-make run plugin=none test_type=join
+make run plugin=none test_type=join table_format=delta
 
 ## Test join with Comet plugin
-make run plugin=comet test_type=join
+make run plugin=comet test_type=join table_format=iceberg
 
 ```
 

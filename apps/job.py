@@ -1,34 +1,14 @@
-from pyspark.sql import SparkSession
+from utils import write_table, load_table, init_spark, validate_output
 
 
-def load_transactions(spark):
-    spark.read.parquet("/app/transactions/*.parquet").createOrReplaceTempView(
-        "transactions"
-    )
-
-def load_stores(spark):
-    spark.read.parquet("/app/stores/*.parquet").createOrReplaceTempView("stores")
-
-
-def load_countries(spark):
-    spark.read.parquet("/app/countries/*.parquet").createOrReplaceTempView("countries")
-
-
-def run_shuffle_test(test_type, plugin):
-    spark = (
-        SparkSession.builder.appName("ShuffleTest")
-        .config("spark.eventLog.enabled", "true")
-        .config("spark.eventLog.dir", "/opt/spark/spark-events")
-        .config("spark.history.fs.logDirectory", "/opt/spark/spark-events")
-        .config("spark.sql.explain.codegen", "true")
-        .config("spark.sql.explain.mode", "extended")
-        .getOrCreate()
-    )
+def run_shuffle_test(test_type, plugin, table_format):
+    # Initialize Spark session
+    spark = init_spark("Shuffle Test", table_format)
 
     ## Load the source data and create a temporary view
-    load_transactions(spark)
-    load_stores(spark)
-    load_countries(spark)
+    load_table(spark, table_format, "transactions")
+    load_table(spark, table_format, "stores")
+    load_table(spark, table_format, "countries")
 
     if test_type == "join":
         ## Disabling the automatic broadcast join entirely. That is, Spark will never broadcast any dataset for joins, regardless of its size.
@@ -54,11 +34,12 @@ def run_shuffle_test(test_type, plugin):
                     transactions.country_id = countries.id
         """)
         ## Create a table with the joined data
-        (
-            joined_df_no_broadcast.write.mode("overwrite").parquet(
-                "/app/" + plugin + "_transact_countries"
-            )
-        )
+        output_table_name = plugin + "_transact_countries"
+        write_table(joined_df_no_broadcast, table_format, output_table_name)
+
+        ## Validate the output
+        # total_rows = validate_output(spark, table_format, output_table_name)
+        # print(total_rows)
 
     elif test_type == "aggregate":
         ## Test groupBy
@@ -72,22 +53,41 @@ def run_shuffle_test(test_type, plugin):
         """)
 
         ## Create a table with the grouped_df data
-        (grouped_df.write.mode("overwrite").parquet("/app/" + plugin + "_country_agg"))
+        output_table_name = plugin + "_country_agg"
+        write_table(grouped_df, table_format, output_table_name)
+
+        ## Validate the output
+        # total_rows = validate_output(spark, table_format, output_table_name)
+        # print(total_rows)
 
 
 if __name__ == "__main__":
-    # Get arguments from command line
-    import sys
+    import argparse
 
-    args = sys.argv[1:]
-    if len(args) != 2:
-        print("Usage: Require <test_type> <plugin>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--test-type",
+        type=str,
+        default="join",
+        choices=["join", "aggregate"],
+        help="Kind of testing",
+    )
+    parser.add_argument(
+        "--plugin",
+        type=str,
+        default="none",
+        choices=["none", "comet"],
+        help="Kind of plugin",
+    )
+    parser.add_argument(
+        "--table-format",
+        type=str,
+        default="parquet",
+        choices=["parquet", "delta", "iceberg"],
+        help="Table format to use",
+    )
+    args = parser.parse_args()
 
-    test_type = args[0]
-    plugin = args[1]
-
-    print(f"Running test: {test_type}")
-    print(f"Plugin: {plugin}")
-
-    run_shuffle_test(test_type, plugin)
+    run_shuffle_test(
+        test_type=args.test_type, plugin=args.plugin, table_format=args.table_format
+    )

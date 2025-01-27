@@ -1,41 +1,33 @@
-from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
+from utils import write_table, init_spark
 
 
-def prepare_dataset():
-    spark = (
-        SparkSession.builder.appName("PrepareDataset")
-        .config("spark.eventLog.enabled", "true")
-        .config("spark.eventLog.dir", "/opt/spark/spark-events")
-        .config("spark.history.fs.logDirectory", "/opt/spark/spark-events")
-        .getOrCreate()
-    )
+def prepare_dataset(table_format="parquet"):
+    """
+    Prepare the dataset with specified table format.
+    Args:
+        table_format (str): Format to save tables. Can be 'parquet', 'delta', or 'iceberg'. Default is 'parquet'.
+    """
+    spark = init_spark("Prepare Dataset", table_format)
 
     ## Create the transactions table
-    (
-        spark.range(0, 150000000, 1, 32)
-        .select(
-            "id",
-            round(rand() * 10000, 2).alias("amount"),
-            (col("id") % 10).alias("country_id"),
-            (col("id") % 100).alias("store_id"),
-        )
-        .write.mode("overwrite")
-        .parquet("/app/transactions")
+    transaction_size = 150000000
+    transactions_df = spark.range(0, transaction_size).select(
+        "id",
+        round(rand() * 10000, 2).alias("amount"),
+        (col("id") % 10).alias("country_id"),
+        (col("id") % 100).alias("store_id"),
     )
+    write_table(transactions_df, table_format, "transactions")
 
     ## Create the stores table
-    (
-        spark.range(0, 99)
-        .select(
-            "id",
-            round(rand() * 100, 0).alias("employees"),
-            (col("id") % 10).alias("country_id"),
-            expr("uuid()").alias("name"),
-        )
-        .write.mode("overwrite")
-        .parquet("/app/stores")
+    stores_df = spark.range(0, 99).select(
+        "id",
+        round(rand() * 100, 0).alias("employees"),
+        (col("id") % 10).alias("country_id"),
+        expr("uuid()").alias("name"),
     )
+    write_table(stores_df, table_format, "stores")
 
     ## Create the countries table
     countries = [
@@ -54,15 +46,22 @@ def prepare_dataset():
     ]
 
     columns = ["id", "name"]
-
-    ## Create the Spark DataFrame and countries table
-    (
-        spark.createDataFrame(data=countries, schema=columns)
-        .write.mode("overwrite")
-        .parquet("/app/countries")
-    )
+    countries_df = spark.createDataFrame(data=countries, schema=columns)
+    write_table(countries_df, table_format, "countries")
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--table-format",
+        type=str,
+        default="parquet",
+        choices=["parquet", "delta", "iceberg"],
+        help="Table format to use",
+    )
+    args = parser.parse_args()
+
     print("Preparing dataset...")
-    prepare_dataset()
+    prepare_dataset(table_format=args.table_format)
