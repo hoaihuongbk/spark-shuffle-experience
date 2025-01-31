@@ -1,4 +1,4 @@
-from utils import write_table, load_table, init_spark, validate_output
+from utils import write_table, load_table, init_spark
 
 
 def run_shuffle_test(test_type, plugin, table_format):
@@ -11,9 +11,6 @@ def run_shuffle_test(test_type, plugin, table_format):
     load_table(spark, table_format, "countries")
 
     if test_type == "join":
-        ## Disabling the automatic broadcast join entirely. That is, Spark will never broadcast any dataset for joins, regardless of its size.
-        ## spark.conf.set("spark.sql.autoBroadcastJoinThreshold", -1)
-
         ## Test join w/o broadcast
         joined_df_no_broadcast = spark.sql("""
             SELECT 
@@ -37,9 +34,6 @@ def run_shuffle_test(test_type, plugin, table_format):
         output_table_name = plugin + "_transact_countries"
         write_table(joined_df_no_broadcast, table_format, output_table_name)
 
-        ## Validate the output
-        # total_rows = validate_output(spark, table_format, output_table_name)
-        # print(total_rows)
 
     elif test_type == "aggregate":
         ## Test groupBy

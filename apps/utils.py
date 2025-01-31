@@ -1,16 +1,15 @@
 from pyspark.sql import SparkSession
 
 
-def get_table_path(table_name):
-    return f"/app/{table_name}"
-
+def get_table_path(table_name, table_format):
+    return f"/app/data/{table_format}/{table_name}"
 
 def get_iceberg_full_table_name(table_name):
     return f"iceberg.db.{table_name}"
 
 
 def build_table_query(spark, table_format, table_name):
-    table_path = get_table_path(table_name)
+    table_path = get_table_path(table_name, table_format)
     if table_format == "delta":
         df = spark.read.format("delta").load(table_path)
     elif table_format == "iceberg":
@@ -31,7 +30,7 @@ def load_table(spark, table_format, table_name):
 # Helper function to write dataframe based on format
 def write_table(df, table_format, table_name):
     writer = df.write.mode("overwrite")
-    table_path = get_table_path(table_name)
+    table_path = get_table_path(table_name, table_format)
     if table_format == "delta":
         return writer.format("delta").save(table_path)
     elif table_format == "iceberg":
@@ -70,7 +69,7 @@ def init_spark(app_name, table_format):
             .config("spark.sql.catalog.spark_catalog.type", "hive")
             .config("spark.sql.catalog.local", "org.apache.iceberg.spark.SparkCatalog")
             .config("spark.sql.catalog.local.type", "hadoop")
-            .config("spark.sql.catalog.local.warehouse", "/app/warehouse")
+            .config("spark.sql.catalog.local.warehouse", "/app/data")
             .config("spark.sql.defaultCatalog", "local")
             .getOrCreate()
         )
