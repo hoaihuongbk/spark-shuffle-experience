@@ -28,8 +28,11 @@ def load_table(spark, table_format, table_name):
 
 
 # Helper function to write dataframe based on format
-def write_table(df, table_format, table_name):
+def write_table(df, table_format, table_name, partition_by=None):
     writer = df.write.mode("overwrite")
+    if partition_by:
+        writer = writer.partitionBy(partition_by)
+
     table_path = get_table_path(table_name, table_format)
     if table_format == "delta":
         return writer.format("delta").save(table_path)
